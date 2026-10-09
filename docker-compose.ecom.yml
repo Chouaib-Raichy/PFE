@@ -1,0 +1,77 @@
+services:
+  discovery:
+    build: ./services/discovery-service
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
+  product-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pfe
+      POSTGRES_PASSWORD: pfe
+      POSTGRES_DB: pfe_product
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pfe -d pfe_product"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - pfe-net
+
+  product-service:
+    build: ./services/product-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://product-db:5432/pfe_product
+      SPRING_DATASOURCE_USERNAME: pfe
+      SPRING_DATASOURCE_PASSWORD: pfe
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+    depends_on:
+      discovery:
+        condition: service_healthy
+      product-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+    depends_on:
+      discovery:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
+volumes:
+  product-db-data:
+
+networks:
+  pfe-net:
+    driver: bridge

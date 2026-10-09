@@ -1,0 +1,42 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: discovery-service
+
+eureka:
+  instance:
+    hostname: discovery
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+
+# Exposition des métriques Prometheus pour l'observabilité
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: discovery-service
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+# Informations applicatives (utile pour Actuator /info)
+info:
+  app:
+    name: Discovery Service (Eureka)
+    description: Service Registry pour l'architecture microservices E-commerce
+    version: 1.0.0
