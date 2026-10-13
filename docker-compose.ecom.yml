@@ -33,7 +33,7 @@ services:
       - pfe-net
 
   # Base documentaire unique : un conteneur MongoDB, une base par service
-  # (pfe_products, pfe_customers, pfe_carts, pfe_orders).
+  # (pfe_carts, pfe_orders). Les referentiels produits/clients sont sur PostgreSQL.
   mongo:
     image: mongo:7
     volumes:
