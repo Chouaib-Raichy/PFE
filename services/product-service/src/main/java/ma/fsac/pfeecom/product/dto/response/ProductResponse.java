@@ -1,10 +1,11 @@
 package ma.fsac.pfeecom.product.dto.response;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * DTO de réponse exposant les informations d'un produit via l'API REST.
+ * DTO de rÃ©ponse exposant les informations d'un produit via l'API REST.
  *
  * @author PFE E-commerce - FSAC Casablanca
  */
@@ -20,4 +21,4 @@ public record ProductResponse(
         String categoryName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {}
+) implements Serializable {}

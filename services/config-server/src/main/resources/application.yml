@@ -1,0 +1,38 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    # Mode "native" : la configuration est lue depuis le systeme de fichiers.
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # Par defaut : repertoire monte dans le conteneur (docker-compose.ecom.yml).
+          # En local : CONFIG_REPO_LOCATION=file:../../config-repo
+          search-locations: ${CONFIG_REPO_LOCATION:file:/config-repo}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: config-server
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+info:
+  app:
+    name: Config Server
+    description: Serveur de configuration centralise pour l'architecture microservices E-commerce (PFE)
+    version: 1.0.0

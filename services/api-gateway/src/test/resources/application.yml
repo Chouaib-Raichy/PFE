@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    config:
+      # Les tests ne contactent pas le serveur de configuration.
+      enabled: false
+    gateway:
+      discovery:
+        locator:
+          # Aucune route déclarée : le filtre de sécurité s'exécute avant le routage.
+          enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+app:
+  security:
+    # Valeurs factices : le décodeur JWT est paresseux (aucun appel réseau au démarrage).
+    issuer-uri: http://issuer.invalid/realms/pfeecom
+    jwk-set-uri: http://127.0.0.1:1/certs

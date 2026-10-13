@@ -8,43 +8,42 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /**
  * Repository JPA pour l'entité Product.
- *
- * <p>Fournit les opérations CRUD ainsi que des requêtes métier
- * (recherche, filtrage par catégorie, fourchette de prix).</p>
  *
  * @author PFE E-commerce - FSAC Casablanca
  */
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
+    /** Indique si au moins un produit référence la catégorie donnée. */
+    boolean existsByCategoryId(Long categoryId);
+
     /**
-     * Recherche des produits actifs correspondant à un mot-clé (nom ou description).
+     * Recherche de repli (PostgreSQL) utilisee quand Elasticsearch est
+     * indisponible : sous-chaine insensible a la casse sur nom / description /
+     * categorie, produits actifs uniquement, filtre categorie optionnel.
      */
     @Query("""
             SELECT p FROM Product p
-            WHERE p.active = true
-              AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                   OR LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            WHERE (:q = '' OR lower(p.name) LIKE lower(concat('%', :q, '%'))
+                   OR lower(coalesce(p.description, '')) LIKE lower(concat('%', :q, '%'))
+                   OR lower(coalesce(p.categoryName, '')) LIKE lower(concat('%', :q, '%')))
+              AND p.active = true
+              AND (:categoryId IS NULL OR p.categoryId = :categoryId)
             """)
-    Page<Product> searchActive(@Param("keyword") String keyword, Pageable pageable);
+    Page<Product> searchFallback(@Param("q") String q,
+                                 @Param("categoryId") Long categoryId,
+                                 Pageable pageable);
 
-    /**
-     * Récupère tous les produits actifs d'une catégorie.
-     */
-    List<Product> findByActiveTrueAndCategoryId(Long categoryId);
-
-    /**
-     * Filtre les produits actifs par fourchette de prix.
-     */
-    List<Product> findByActiveTrueAndPriceBetween(BigDecimal minPrice, BigDecimal maxPrice);
-
-    /**
-     * Vérifie l'existence d'un produit actif par son identifiant.
-     */
-    boolean existsByIdAndActiveTrue(Long id);
+    /** Suggestions de repli : produits actifs dont le nom contient le terme. */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.active = true
+              AND lower(p.name) LIKE lower(concat('%', :q, '%'))
+            ORDER BY p.name ASC
+            """)
+    List<Product> suggestFallback(@Param("q") String q, Pageable pageable);
 }

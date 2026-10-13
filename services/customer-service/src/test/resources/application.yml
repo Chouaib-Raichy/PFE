@@ -1,0 +1,35 @@
+spring:
+  cloud:
+    config:
+      # Les tests ne contactent pas le serveur de configuration.
+      enabled: false
+  datasource:
+    # Base de test dédiée du conteneur postgres-test (docker-compose.ecom.yml, port hôte 5433)
+    url: jdbc:postgresql://localhost:5433/pfe_customers_test
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # Le schéma est géré par Flyway ; Hibernate se contente de le vérifier.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+eureka:
+  client:
+    enabled: false
+
+app:
+  security:
+    # Valeurs factices : le decodeur JWT est paresseux (aucun appel reseau au demarrage).
+    issuer-uri: http://localhost:8181/realms/pfeecom
+    jwk-set-uri: http://localhost:5433/certs
+  provisioning:
+    # Le client d'administration Keycloak n'est pas appele par les tests d'API.
+    keycloak-base-url: http://localhost:8181
+    realm: pfeecom
+    client-id: pfeecom-provisioner
+    client-secret: test-secret

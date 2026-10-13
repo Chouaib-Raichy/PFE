@@ -1,16 +1,52 @@
 spring:
+  cloud:
+    config:
+      # Les tests ne contactent pas le serveur de configuration.
+      enabled: false
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    # Base de test dédiée du conteneur postgres-test (docker-compose.ecom.yml, port hôte 5433)
+    url: jdbc:postgresql://localhost:5433/pfe_products_test
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    show-sql: false
-  sql:
-    init:
-      mode: never
+      # Le schéma est géré par Flyway ; Hibernate se contente de le vérifier.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  elasticsearch:
+    # Tests : ES joignable sur la loopback (port publie par le conteneur). La
+    # recherche est desactivee par defaut ; les tests dedies l'activent.
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 5s
+    socket-timeout: 30s
+  data:
+    redis:
+      # Tests : instance Redis dediee (docker compose --profile test up -d redis-test).
+      # Les erreurs Redis sont avalees (repli base) : les tests non dedies au
+      # cache restent valides meme si l'instance est absente.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      timeout: 2s
+      connect-timeout: 2s
+
+app:
+  search:
+    # Desactive par defaut : les tests existants ne dependant pas d'ES restent
+    # inchanges. Les tests de recherche surchargent ces valeurs.
+    enabled: false
+    index-name: pfeecom-products-test
+  storage:
+    # Desactive par defaut : les tests d'image remplacent le StorageService par
+    # un doublure (mock) ou verifient le comportement de repli (503).
+    enabled: false
 
 eureka:
   client:
@@ -21,6 +57,9 @@ management:
     web:
       exposure:
         include: health,info
+  health:
+    elasticsearch:
+      enabled: false
   prometheus:
     metrics:
       export:

@@ -1,35 +1,34 @@
 package ma.fsac.pfeecom.product.domain.entity;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.PrePersist;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Entité représentant une catégorie de produits.
+ * Entité JPA représentant une catégorie de produits (PostgreSQL).
  *
- * <p>Une catégorie peut regrouper plusieurs produits.
- * L'utilisation de @OneToMany avec mappedBy permet d'éviter une table de jointure
- * inutile et respecte les bonnes pratiques relationnelles.</p>
+ * <p>Le nom est unique (contrainte UNIQUE en base). Les produits y font
+ * référence par une clé étrangère {@code products.category_id}.</p>
  *
  * @author PFE E-commerce - FSAC Casablanca
  */
 @Entity
 @Table(name = "categories")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,40 +37,17 @@ import java.util.List;
 public class Category {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "category_seq")
+    @SequenceGenerator(name = "category_seq", sequenceName = "category_seq", allocationSize = 1)
     private Long id;
 
-    @Column(nullable = false, length = 100, unique = true)
+    @Column(nullable = false, unique = true, length = 100)
     private String name;
 
     @Column(length = 500)
     private String description;
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<Product> products = new ArrayList<>();
-
-    @Column(nullable = false, updatable = false)
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-    }
-
-    /**
-     * Méthode utilitaire pour maintenir la cohérence bidirectionnelle.
-     */
-    public void addProduct(Product product) {
-        products.add(product);
-        product.setCategory(this);
-    }
-
-    /**
-     * Méthode utilitaire pour maintenir la cohérence bidirectionnelle.
-     */
-    public void removeProduct(Product product) {
-        products.remove(product);
-        product.setCategory(null);
-    }
 }

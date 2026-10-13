@@ -3,9 +3,11 @@ package ma.fsac.pfeecom.product.exception;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -35,6 +37,21 @@ public class GlobalExceptionHandler {
                 null
         );
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Gère les conflits métier (409), par exemple une suppression impossible.
+     */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.CONFLICT.value(),
+                "CONFLICT",
+                ex.getMessage(),
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
 
     /**
@@ -70,6 +87,82 @@ public class GlobalExceptionHandler {
                 null
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Gère les corps de requête illisibles (JSON malformé) — 400.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                "MALFORMED_JSON",
+                "Le corps de la requête est invalide ou malformé.",
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Gère l'indisponibilité d'Elasticsearch sur les operations qui en
+     * dependent (reindexation admin) — 503.
+     */
+    @ExceptionHandler(SearchUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleSearchUnavailable(SearchUnavailableException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "SEARCH_UNAVAILABLE",
+                "La recherche est momentanement indisponible. Veuillez reessayer plus tard.",
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    /**
+     * Gère l'indisponibilité du stockage objet (images) — 503.
+     */
+    @ExceptionHandler(StorageUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleStorageUnavailable(StorageUnavailableException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "STORAGE_UNAVAILABLE",
+                "Le stockage d'images est momentanement indisponible. Veuillez reessayer plus tard.",
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    /**
+     * Gère les images invalides (format/type incoherent, fichier vide) — 400.
+     */
+    @ExceptionHandler(InvalidImageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidImage(InvalidImageException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                "INVALID_IMAGE",
+                ex.getMessage(),
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Gère les fichiers dépassant la taille maximale autorisee — 413.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                "FILE_TOO_LARGE",
+                "L'image depasse la taille maximale autorisee (5 Mo).",
+                null
+        );
+        return new ResponseEntity<>(error, HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
     /**

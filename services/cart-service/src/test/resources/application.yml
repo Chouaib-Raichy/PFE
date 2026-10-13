@@ -1,0 +1,20 @@
+spring:
+  cloud:
+    config:
+      # Les tests ne contactent pas le serveur de configuration.
+      enabled: false
+  data:
+    mongodb:
+      # Base de test dédiée du conteneur mongo-test (docker-compose.ecom.yml, port hôte 27018)
+      uri: mongodb://localhost:27018/pfe_carts_test
+
+eureka:
+  client:
+    enabled: false
+
+app:
+  security:
+    # Valeurs factices : le décodeur JWT est paresseux (aucun appel réseau au démarrage)
+    # et les tests n'exigent pas de validation de signature réelle.
+    issuer-uri: http://localhost:8181/realms/pfeecom
+    jwk-set-uri: http://localhost:27018/certs

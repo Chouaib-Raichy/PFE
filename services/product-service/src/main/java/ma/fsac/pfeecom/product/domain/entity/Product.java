@@ -2,35 +2,36 @@ package ma.fsac.pfeecom.product.domain.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Entité JPA représentant un produit dans le catalogue e-commerce.
+ * Entité JPA représentant un produit (PostgreSQL).
  *
- * <p>Conforme aux bonnes pratiques : encapsulation via Lombok,
- * relations Lazy pour optimiser les performances,
- * suivi automatique des dates (createdAt / updatedAt).</p>
+ * <p>La colonne {@code category_id} porte une véritable clé étrangère vers
+ * {@code categories(id)} (créée par Flyway). {@code category_name} reste une
+ * copie dénormalisée pour l'affichage, cohérente avec le contrat REST.</p>
  *
  * @author PFE E-commerce - FSAC Casablanca
  */
 @Entity
 @Table(name = "products")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -39,7 +40,8 @@ import java.time.LocalDateTime;
 public class Product {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "product_seq")
+    @SequenceGenerator(name = "product_seq", sequenceName = "product_seq", allocationSize = 1)
     private Long id;
 
     @Column(nullable = false, length = 150)
@@ -48,39 +50,38 @@ public class Product {
     @Column(length = 1000)
     private String description;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
-    @Column(nullable = false)
+    @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity;
 
-    @Column(length = 255)
+    @Column(name = "image_url", length = 1000)
     private String imageUrl;
 
-    @Column(nullable = false)
+    /**
+     * Reference INTERNE de l'objet image dans le stockage S3/MinIO (jamais
+     * exposee au client). Permet de remplacer/supprimer proprement l'objet.
+     */
+    @Column(name = "image_key", length = 300)
+    private String imageKey;
+
+    /** Référence vers la catégorie (clé étrangère vers categories.id). */
+    @Column(name = "category_id")
+    private Long categoryId;
+
+    /** Copie du nom de la catégorie pour l'affichage, cohérente avec le front-end. */
+    @Column(name = "category_name", length = 100)
+    private String categoryName;
+
+    @Column
     private Boolean active;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private Category category;
-
-    @Column(nullable = false, updatable = false)
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
+    @LastModifiedDate
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        if (this.active == null) {
-            this.active = Boolean.TRUE;
-        }
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }
