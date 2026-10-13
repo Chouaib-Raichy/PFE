@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery
+  labels:
+    app: discovery
+    app.kubernetes.io/part-of: pfe-ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery
+  template:
+    metadata:
+      labels:
+        app: discovery
+    spec:
+      initContainers:
+        # K8s n'a pas de depends_on : on attend que config-server soit sain
+        # avant de demarrer (l'import de configuration est obligatoire).
+        - name: wait-config-server
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until wget -q -O- http://config-server:8888/actuator/health >/dev/null 2>&1; do echo "attente config-server..."; sleep 3; done
+      containers:
+        - name: discovery
+          image: pfe-discovery:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8761
+          env:
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://discovery:8761/eureka
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              memory: "640Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery
+  labels:
+    app: discovery
+    app.kubernetes.io/part-of: pfe-ecommerce
+spec:
+  selector:
+    app: discovery
+  ports:
+    - name: http
+      port: 8761
+      targetPort: 8761

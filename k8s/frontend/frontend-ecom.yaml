@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-ecom
+  labels:
+    app: frontend-ecom
+    app.kubernetes.io/part-of: pfe-ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-ecom
+  template:
+    metadata:
+      labels:
+        app: frontend-ecom
+    spec:
+      containers:
+        - name: frontend-ecom
+          image: pfe-frontend-ecom:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          # Nginx sert le SPA et proxy /api/ -> http://api-gateway:8080
+          # (nom de Service resolvable dans le namespace).
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-ecom
+  labels:
+    app: frontend-ecom
+    app.kubernetes.io/part-of: pfe-ecommerce
+spec:
+  selector:
+    app: frontend-ecom
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

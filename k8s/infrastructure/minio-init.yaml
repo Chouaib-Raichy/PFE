@@ -1,0 +1,56 @@
+# Job d'initialisation du stockage objet (une seule fois) : bucket prive +
+# utilisateur applicatif a privilege minimal. Idempotent (voir init-bucket.sh).
+# Compose faisait cela via un conteneur ephemere "minio-init".
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  labels:
+    app: minio-init
+    app.kubernetes.io/part-of: pfe-ecommerce
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: minio-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: minio-init
+          image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/init/init-bucket.sh"]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pfe-secrets
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pfe-secrets
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_APP_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pfe-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_APP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pfe-secrets
+                  key: MINIO_SECRET_KEY
+            - name: MINIO_BUCKET
+              value: pfeecom-product-images
+          volumeMounts:
+            - name: init
+              mountPath: /init
+      volumes:
+        - name: init
+          configMap:
+            name: minio-init
+            defaultMode: 0755

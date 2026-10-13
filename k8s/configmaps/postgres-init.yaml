@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  labels:
+    app.kubernetes.io/part-of: pfe-ecommerce
+data:
+  # Identique a docker/postgres/init-ecom.sh : cree un role + une base par
+  # service relationnel. Monte dans /docker-entrypoint-initdb.d (execute une
+  # seule fois, au premier demarrage sur un volume vide).
+  init-ecom.sh: |
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE ROLE product_svc  LOGIN PASSWORD '${PRODUCT_DB_PASSWORD:-product}';
+        CREATE ROLE customer_svc LOGIN PASSWORD '${CUSTOMER_DB_PASSWORD:-customer}';
+        CREATE DATABASE pfe_products  OWNER product_svc;
+        CREATE DATABASE pfe_customers OWNER customer_svc;
+    EOSQL

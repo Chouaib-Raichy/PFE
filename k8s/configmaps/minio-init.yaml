@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-init
+  labels:
+    app.kubernetes.io/part-of: pfe-ecommerce
+data:
+  # Identiques a docker/minio/{init-bucket.sh,product-images-policy.json}.
+  # Monte dans /init pour le Job minio-init.
+  init-bucket.sh: |
+    #!/bin/sh
+    set -e
+
+    : "${MINIO_BUCKET:?MINIO_BUCKET requis}"
+    : "${MINIO_ROOT_USER:?MINIO_ROOT_USER requis}"
+    : "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD requis}"
+    : "${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY requis}"
+    : "${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY requis}"
+
+    echo "Attente de MinIO..."
+    until mc alias set app "http://minio:9000" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+      sleep 2
+    done
+
+    echo "Creation du bucket ${MINIO_BUCKET} (prive)..."
+    mc mb --ignore-existing "app/${MINIO_BUCKET}"
+
+    echo "Generation de la politique a privilege minimal..."
+    sed "s|__BUCKET__|${MINIO_BUCKET}|g" /init/product-images-policy.json > /tmp/policy.json
+
+    echo "Creation de l'utilisateur applicatif ${MINIO_APP_ACCESS_KEY}..."
+    mc admin user add app "$MINIO_APP_ACCESS_KEY" "$MINIO_APP_SECRET_KEY" >/dev/null 2>&1 || true
+    mc admin policy create app pfeecom-product-images /tmp/policy.json >/dev/null 2>&1 || true
+    mc admin policy attach app pfeecom-product-images --user "$MINIO_APP_ACCESS_KEY" >/dev/null 2>&1 || true
+
+    echo "Stockage objet pret : bucket=${MINIO_BUCKET}, utilisateur=${MINIO_APP_ACCESS_KEY}"
+  product-images-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetBucketLocation",
+            "s3:ListBucket"
+          ],
+          "Resource": ["arn:aws:s3:::__BUCKET__"]
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject"
+          ],
+          "Resource": ["arn:aws:s3:::__BUCKET__/*"]
+        }
+      ]
+    }

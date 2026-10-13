@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Toutes les ressources sont creees dans le namespace dedie pfe-ecommerce.
+namespace: pfe-ecommerce
+
+resources:
+  - namespace.yaml
+
+  # ConfigMaps non sensibles (verifies dans le depot).
+  - configmaps/postgres-init.yaml
+  - configmaps/minio-init.yaml
+
+  # Infrastructure (donnees fraiches, PVC dedies au cluster K8s).
+  - infrastructure/postgres.yaml
+  - infrastructure/mongo.yaml
+  - infrastructure/redis.yaml
+  - infrastructure/elasticsearch.yaml
+  - infrastructure/minio.yaml
+  - infrastructure/minio-init.yaml
+  - infrastructure/keycloak.yaml
+
+  # Services applicatifs (images locales existantes, inchangees).
+  - services/config-server.yaml
+  - services/discovery.yaml
+  - services/product-service.yaml
+  - services/customer-service.yaml
+  - services/cart-service.yaml
+  - services/order-service.yaml
+  - services/api-gateway.yaml
+
+  # Frontend (Nginx, proxy /api/ -> api-gateway:8080).
+  - frontend/frontend-ecom.yaml
+
+# Remarques :
+#  - Le ConfigMap "config-repo" et le Secret "pfe-secrets" sont CREES par
+#    k8s/scripts/deploy.ps1 (respectivement depuis le dossier config-repo/ et
+#    depuis des valeurs locales), car ils ne doivent pas etre committes en dur.
+#  - Aucune base de donnees existante de Docker Compose n'est reutilisee :
+#    le cluster K8s cree ses propres PV/PVC (donnees neuves, isolees).
