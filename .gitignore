@@ -31,3 +31,31 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Sauvegarde migration (hors versionnement) ###
+dump/
+
+### Node / Vite / frontend ###
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+*.tsbuildinfo
+fe-*.log
+
+### Journaux d'execution locaux ###
+*.log
+deploy.log
+reg-*.log
+
+### Python (outillage slides / audit) ###
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+### Divers ###
+*.local
+.env
+.env.*
+!.env.example
