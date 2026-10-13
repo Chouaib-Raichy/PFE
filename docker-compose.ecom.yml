@@ -201,9 +201,9 @@ services:
       # Valeurs de repli de developpement : surchargeables via le fichier .env
       # (non versionne). A remplacer en production.
       PROVISIONER_CLIENT_SECRET: ${PROVISIONER_CLIENT_SECRET:-pfeecom-provisioner-secret}
-      KEYCLOAK_DEMO_ADMIN_PASSWORD: ${KEYCLOAK_DEMO_ADMIN_PASSWORD:-change-me}
-      KEYCLOAK_DEMO_CUSTOMER_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER_PASSWORD:-change-me}
-      KEYCLOAK_DEMO_CUSTOMER2_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER2_PASSWORD:-change-me}
+      KEYCLOAK_DEMO_ADMIN_PASSWORD: ${KEYCLOAK_DEMO_ADMIN_PASSWORD:-admin}
+      KEYCLOAK_DEMO_CUSTOMER_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER_PASSWORD:-yassine}
+      KEYCLOAK_DEMO_CUSTOMER2_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER2_PASSWORD:-sarah}
     volumes:
       - ./keycloak/realm-pfeecom.json:/opt/keycloak/data/import/realm-pfeecom.json:ro
       - ./keycloak/themes/pfeecom:/opt/keycloak/themes/pfeecom:ro
