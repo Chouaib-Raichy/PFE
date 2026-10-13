@@ -13,6 +13,7 @@ import ma.fsac.pfeecom.cart.dto.response.CartResponse;
 import ma.fsac.pfeecom.cart.exception.ResourceNotFoundException;
 import ma.fsac.pfeecom.cart.repository.CartRepository;
 import ma.fsac.pfeecom.cart.service.CartService;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -40,13 +41,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartResponse addItem(Long customerId, AddItemRequest request) {
         customerServiceClient.getCustomer(customerId);
-        Cart cart = cartRepository.findByCustomerId(customerId).orElseGet(() -> {
-            Cart newCart = Cart.builder()
-                    .id(sequenceGenerator.nextSeq("carts"))
-                    .customerId(customerId)
-                    .build();
-            return cartRepository.save(newCart);
-        });
+        Cart cart = getOrCreateCart(customerId);
 
         cart.getItems().stream()
                 .filter(item -> item.getProductId().equals(request.productId()))
@@ -61,11 +56,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartResponse mergeCart(Long customerId, MergeCartRequest request) {
         customerServiceClient.getCustomer(customerId);
-        Cart cart = cartRepository.findByCustomerId(customerId).orElseGet(() -> cartRepository.save(
-                Cart.builder()
-                        .id(sequenceGenerator.nextSeq("carts"))
-                        .customerId(customerId)
-                        .build()));
+        Cart cart = getOrCreateCart(customerId);
 
         for (AddItemRequest incoming : request.items()) {
             cart.getItems().stream()
@@ -109,6 +100,19 @@ public class CartServiceImpl implements CartService {
     private Cart getCartOrThrow(Long customerId) {
         return cartRepository.findByCustomerId(customerId)
                 .orElseThrow(() -> ResourceNotFoundException.customer(customerId));
+    }
+
+    private Cart getOrCreateCart(Long customerId) {
+        return cartRepository.findByCustomerId(customerId).orElseGet(() -> {
+            try {
+                return cartRepository.save(Cart.builder()
+                        .id(sequenceGenerator.nextSeq("carts"))
+                        .customerId(customerId)
+                        .build());
+            } catch (DuplicateKeyException ex) {
+                return cartRepository.findByCustomerId(customerId).orElseThrow(() -> ex);
+            }
+        });
     }
 
     private CartResponse toResponse(Cart cart) {

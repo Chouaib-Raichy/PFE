@@ -202,7 +202,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         paymentMethod: 'CASH_ON_DELIVERY',
         items: serverCart.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       })
-      setServerCart(await api.getCart(customerId))
+      await api.clearCart(customerId)
+      setServerCart({ customerId, items: [], total: 0 })
       return order
     } catch (err) {
       notify(err instanceof ApiError ? err.message : 'Commande impossible', 'error')

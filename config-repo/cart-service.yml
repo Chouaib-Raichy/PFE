@@ -5,6 +5,7 @@ spring:
   data:
     mongodb:
       uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/pfe_carts}
+      auto-index-creation: true
 
 eureka:
   client:
