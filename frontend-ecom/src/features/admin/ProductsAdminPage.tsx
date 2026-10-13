@@ -11,6 +11,7 @@ import { Modal } from '../../ui/Modal'
 import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { EmptyState } from '../../ui/EmptyState'
 import { Skeleton } from '../../ui/Skeleton'
+import { ProductImage } from '../../ui/ProductImage'
 import { Field, Input, Select, Textarea } from '../../ui/Field'
 import type { Product, ProductInput } from '../../types'
 
@@ -129,6 +130,7 @@ export function ProductsAdminPage() {
   }
 
   const save = async () => {
+    if (saving) return
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
@@ -147,6 +149,11 @@ export function ProductsAdminPage() {
       const saved = editor.product
         ? await api.updateProduct(editor.product.id, payload)
         : await api.createProduct(payload)
+
+      // Le produit existe desormais : on bascule en mode edition pour qu'un
+      // echec ulterieur (ex. televersement d'image) ne cree PAS de doublon au
+      // prochain essai.
+      if (!editor.product) setEditor({ open: true, product: saved })
 
       if (imageFile) {
         setUploadPct(0)
@@ -269,8 +276,15 @@ export function ProductsAdminPage() {
               {filtered.map((p) => (
                 <tr key={p.id}>
                   <td style={{ whiteSpace: 'normal' }}>
-                    <span className="semibold">{p.name}</span>
-                    {p.description && <div className="muted xs">{p.description}</div>}
+                    <div className="admin-cell-product">
+                      <span className="admin-thumb">
+                        <ProductImage src={p.imageUrl} alt={p.name} iconSize={18} />
+                      </span>
+                      <div>
+                        <span className="semibold">{p.name}</span>
+                        {p.description && <div className="muted xs">{p.description}</div>}
+                      </div>
+                    </div>
                   </td>
                   <td>{p.categoryName ?? <span className="muted">—</span>}</td>
                   <td className="semibold">{formatPrice(p.price)}</td>
