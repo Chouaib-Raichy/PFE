@@ -1,0 +1,41 @@
+server:
+  port: 8084
+
+spring:
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://mongo:27017/pfe_orders}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    # OAuth2 : Authorization Code + PKCE (client public dedie, aucun secret).
+    oauth:
+      client-id: pfeecom-swagger
+      use-pkce-with-authorization-code-grant: true
+      scopes: [openid]
+
+info:
+  app:
+    name: Order Service
+    description: Service de gestion des commandes - E-commerce Microservices (PFE)
+    version: 1.0.0
+
+app:
+  security:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8181/realms/pfeecom}
+    jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://keycloak:8080/realms/pfeecom/protocol/openid-connect/certs}
+  openapi:
+    oauth:
+      authorization-url: ${KEYCLOAK_AUTH_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/auth}
+      token-url: ${KEYCLOAK_TOKEN_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/token}

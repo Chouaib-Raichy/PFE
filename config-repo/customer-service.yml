@@ -1,0 +1,60 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    # Base relationnelle dediee (conteneur postgres, reseau interne pfe-net).
+    url: jdbc:postgresql://postgres:5432/pfe_customers
+    username: ${CUSTOMER_DB_USER:customer_svc}
+    password: ${CUSTOMER_DB_PASSWORD:customer}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # Le schema est gere par Flyway ; Hibernate le verifie au demarrage.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    # OAuth2 : Authorization Code + PKCE (client public dedie, aucun secret).
+    oauth:
+      client-id: pfeecom-swagger
+      use-pkce-with-authorization-code-grant: true
+      scopes: [openid]
+
+app:
+  openapi:
+    oauth:
+      authorization-url: ${KEYCLOAK_AUTH_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/auth}
+      token-url: ${KEYCLOAK_TOKEN_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/token}
+  # Validation du jeton sur POST /api/customers/me (meme schema que les services).
+  security:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8181/realms/pfeecom}
+    jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://keycloak:8080/realms/pfeecom/protocol/openid-connect/certs}
+  # Provisionnement : compte de service Keycloak (client confidentiel), secret
+  # uniquement cote serveur (jamais expose au navigateur).
+  provisioning:
+    keycloak-base-url: ${KEYCLOAK_INTERNAL_URL:http://keycloak:8080}
+    realm: ${KEYCLOAK_REALM:pfeecom}
+    client-id: ${PROVISIONER_CLIENT_ID:pfeecom-provisioner}
+    client-secret: ${PROVISIONER_CLIENT_SECRET:pfeecom-provisioner-secret}
+
+info:
+  app:
+    name: Customer Service
+    description: Service de gestion des clients - E-commerce Microservices (PFE)
+    version: 1.0.0

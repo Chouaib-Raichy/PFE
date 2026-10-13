@@ -1,0 +1,12 @@
+server:
+  port: 8090
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+app:
+  security:
+    # En local (hors Docker), Keycloak est joignable directement sur l'hote.
+    jwk-set-uri: http://localhost:8181/realms/pfeecom/protocol/openid-connect/certs

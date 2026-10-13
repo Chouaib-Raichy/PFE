@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    # Developpement hors Docker : PostgreSQL local (base dediee).
+    url: jdbc:postgresql://localhost:5432/pfe_products_local
+    username: ${PRODUCT_DB_USER:product_svc}
+    password: ${PRODUCT_DB_PASSWORD:product}
+  # Developpement hors Docker : Elasticsearch joignable sur la loopback
+  # (conteneur docker compose avec le port 9200 publie en 127.0.0.1).
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+
+# Developpement hors Docker : MinIO joignable sur la loopback (port 9000 publie).
+app:
+  storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

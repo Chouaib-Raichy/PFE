@@ -1,0 +1,14 @@
+# Provisioning des tableaux de bord depuis des fichiers JSON versionnes.
+apiVersion: 1
+
+providers:
+  - name: pfe-ecom
+    orgId: 1
+    folder: PFE
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

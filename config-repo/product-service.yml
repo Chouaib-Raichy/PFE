@@ -1,0 +1,97 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    # Base relationnelle dediee (conteneur postgres, reseau interne pfe-net).
+    url: jdbc:postgresql://postgres:5432/pfe_products
+    username: ${PRODUCT_DB_USER:product_svc}
+    password: ${PRODUCT_DB_PASSWORD:product}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # Le schema est gere par Flyway ; Hibernate le verifie au demarrage.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  # Limites de taille pour le televersement d'images (endpoints multipart).
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  # Elasticsearch : moteur de recherche. PostgreSQL reste la source de verite.
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
+    connection-timeout: 3s
+  # Cache applicatif (Redis, cache-aside). PostgreSQL reste la source de verite.
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+      client-type: lettuce
+    socket-timeout: 10s
+
+# Recherche applicative (index, indexation, repli PostgreSQL).
+app:
+  search:
+    enabled: ${SEARCH_ENABLED:true}
+    index-name: ${SEARCH_INDEX:pfeecom-products}
+    # Intervalle du traitement differe de la file d'indexation (ms).
+    drain-interval-ms: ${SEARCH_DRAIN_INTERVAL_MS:5000}
+  # Stockage objet S3 (MinIO) des images produit. Si desactive ou indisponible,
+  # product-service continue de fonctionner (endpoints d'image en 503).
+  storage:
+    enabled: ${STORAGE_ENABLED:true}
+    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+    access-key: ${MINIO_ACCESS_KEY:pfeecom-app}
+    secret-key: ${MINIO_SECRET_KEY:pfeecom-app-secret}
+    bucket: ${MINIO_BUCKET:pfeecom-product-images}
+    # Taille maximale d'une image acceptee (octets) : 5 Mo.
+    max-image-bytes: ${MINIO_MAX_IMAGE_BYTES:5242880}
+  # URL OIDC publiques utilisees dans les security schemes OpenAPI (le navigateur
+  # appelle Keycloak directement sur localhost:8181).
+  openapi:
+    oauth:
+      authorization-url: ${KEYCLOAK_AUTH_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/auth}
+      token-url: ${KEYCLOAK_TOKEN_URL:http://localhost:8181/realms/pfeecom/protocol/openid-connect/token}
+
+# ES ne doit pas conditionner la sante du conteneur : si ES est indisponible,
+# product-service demarre et replie la recherche sur PostgreSQL.
+management:
+  health:
+    elasticsearch:
+      enabled: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    # OAuth2 : Authorization Code + PKCE contre le realm pfeecom, client public
+    # dedie (aucun secret embarque). Swagger UI gere lui-meme le PKCE (S256).
+    oauth:
+      client-id: pfeecom-swagger
+      use-pkce-with-authorization-code-grant: true
+      scopes: [openid]
+
+info:
+  app:
+    name: Product Service
+    description: Microservice de gestion du catalogue produits (E-commerce)
+    version: 1.0.0

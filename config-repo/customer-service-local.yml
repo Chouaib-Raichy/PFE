@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    # Developpement hors Docker : PostgreSQL local (base dediee).
+    url: jdbc:postgresql://localhost:5432/pfe_customers_local
+    username: ${CUSTOMER_DB_USER:customer_svc}
+    password: ${CUSTOMER_DB_PASSWORD:customer}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

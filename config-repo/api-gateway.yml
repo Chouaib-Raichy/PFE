@@ -1,0 +1,136 @@
+server:
+  port: 8080
+
+spring:
+  # Le televersement d'images (multipart) traverse la passerelle : on autorise
+  # jusqu'a 6 Mo en memoire par requete (au-dela des 256 Ko par defaut).
+  codec:
+    max-in-memory-size: 6MB
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5173"
+              - "http://localhost:3000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        - id: product-service
+          uri: lb://product-service
+          predicates:
+            - Path=/api/products/**, /api/categories/**
+        - id: customer-service
+          uri: lb://customer-service
+          predicates:
+            - Path=/api/customers/**
+        - id: cart-service
+          uri: lb://cart-service
+          predicates:
+            - Path=/api/carts/**
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+        # Documentation agregee : chaque service expose sa spec sur /v3/api-docs ;
+        # le gateway la re-expose sous /api-docs/<service> (Swagger UI les regroupe).
+        - id: product-docs
+          uri: lb://product-service
+          predicates:
+            - Path=/api-docs/product-service
+          filters:
+            - SetPath=/v3/api-docs
+        - id: customer-docs
+          uri: lb://customer-service
+          predicates:
+            - Path=/api-docs/customer-service
+          filters:
+            - SetPath=/v3/api-docs
+        - id: cart-docs
+          uri: lb://cart-service
+          predicates:
+            - Path=/api-docs/cart-service
+          filters:
+            - SetPath=/v3/api-docs
+        - id: order-docs
+          uri: lb://order-service
+          predicates:
+            - Path=/api-docs/order-service
+          filters:
+            - SetPath=/v3/api-docs
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+management:
+  # Actuator (dont /actuator/prometheus) sur un port interne distinct, NON publie
+  # sur l'hote : Prometheus scrape le gateway via le reseau Docker uniquement.
+  # Le port public 8080 (8090 hote) n'expose ainsi AUCUN endpoint d'actuator.
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    gateway:
+      enabled: true
+
+# Swagger UI agregee servie par le gateway (port hote 8090). Le gateway expose les
+# specs des 4 services sous /api-docs/<service> (routes ci-dessus) et Swagger UI les
+# regroupe. Attention : desactiver `api-docs` supprime aussi les ressources statiques
+# de Swagger UI (SwaggerWebFluxConfigurer non enregistre -> /webjars/swagger-ui/** en
+# 404) ; on garde donc `api-docs` actif (le gateway expose en plus sa propre spec
+# minimale sur /v3/api-docs, utilisee par l'endpoint /v3/api-docs/swagger-config).
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    operationsSorter: method
+    # OAuth2 : Authorization Code + PKCE (client public dedie, aucun secret).
+    oauth:
+      client-id: pfeecom-swagger
+      use-pkce-with-authorization-code-grant: true
+      scopes: [openid]
+    urls:
+      - name: Product Service
+        url: /api-docs/product-service
+      - name: Customer Service
+        url: /api-docs/customer-service
+      - name: Cart Service
+        url: /api-docs/cart-service
+      - name: Order Service
+        url: /api-docs/order-service
+
+info:
+  app:
+    name: API Gateway
+    description: Point d'entree unique pour l'architecture microservices E-commerce (PFE)
+    version: 1.0.0
+
+# Securite OAuth2 (resource server JWT).
+# - issuer-uri : URL publique (navigateur) qui figure dans le claim "iss" des jetons.
+# - jwk-set-uri : point de recuperation des cles, resolvable depuis le reseau Docker.
+app:
+  security:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8181/realms/pfeecom}
+    jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://keycloak:8080/realms/pfeecom/protocol/openid-connect/certs}

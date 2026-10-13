@@ -1,0 +1,212 @@
+/* ============================================================
+   Thème d'authentification « pfeecom » — noir / blanc / or.
+   Remplace keycloak.v2/login/resources/css/styles.css (parent).
+   S'applique à : connexion, inscription, mot de passe oublié,
+   mise à jour du profil, etc. (tous servis par template.ftl).
+   ============================================================ */
+
+:root {
+  --kc-bg: #0b0b0c;
+  --kc-surface: #16161a;
+  --kc-surface-2: #1e1e23;
+  --kc-border: #2a2a30;
+  --kc-border-strong: #3a3a42;
+  --kc-text: #f5f5f4;
+  --kc-text-secondary: #c7c7cc;
+  --kc-muted: #8e8e97;
+  --kc-gold: #c8a24b;
+  --kc-gold-strong: #e0bc66;
+  --kc-gold-ink: #14110a;
+  --kc-danger: #e5484d;
+  --kc-font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --- Fond & gabarit (reprend la mise en page du parent) --- */
+html.login-pf,
+body {
+  background: var(--kc-bg) !important;
+  font-family: var(--kc-font);
+}
+
+body#keycloak-bg,
+.login-pf body {
+  background-color: var(--kc-bg);
+  background-image:
+    radial-gradient(120% 90% at 15% 0%, rgba(200, 162, 75, 0.16), transparent 55%),
+    radial-gradient(120% 120% at 100% 100%, rgba(200, 162, 75, 0.08), transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+.pf-v5-c-login__container {
+  grid-template-columns: 30rem;
+  grid-template-areas: "header" "main";
+}
+
+/* --- En-tête de marque --- */
+.pf-v5-c-login__header {
+  text-align: center;
+}
+
+#kc-header-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0 0.5rem;
+  color: var(--kc-text) !important;
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+}
+
+#kc-header-wrapper::before {
+  content: "S";
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--kc-gold), #8a6d28);
+  color: var(--kc-gold-ink);
+  font-weight: 800;
+  font-size: 1.5rem;
+}
+
+#kc-header-wrapper::after {
+  content: "Espace sécurisé · PFE E-commerce";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1.6rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--kc-muted);
+  letter-spacing: 0.02em;
+}
+
+.pf-v5-c-login__header {
+  position: relative;
+  padding-bottom: 1.2rem;
+}
+
+/* --- Carte --- */
+.pf-v5-c-login__main {
+  background: var(--kc-surface) !important;
+  border: 1px solid var(--kc-border) !important;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  background: transparent !important;
+}
+
+.pf-v5-c-title,
+#kc-page-title,
+.pf-v5-c-login__main-header {
+  color: var(--kc-text) !important;
+}
+
+.pf-v5-c-login__main-header h1 {
+  font-weight: 650;
+}
+
+/* --- Libellés / aide --- */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
+label {
+  color: var(--kc-text-secondary) !important;
+  font-weight: 600;
+}
+
+#kc-form-options,
+.pf-v5-c-login__main-footer,
+.pf-v5-c-login__main-footer a,
+a {
+  color: var(--kc-gold-strong) !important;
+}
+
+a:hover {
+  color: var(--kc-gold) !important;
+}
+
+/* --- Champs de saisie --- */
+.pf-v5-c-form-control,
+.pf-v5-c-input-group {
+  background: var(--kc-surface-2) !important;
+  border: 1px solid var(--kc-border) !important;
+  border-radius: 8px;
+  color: var(--kc-text) !important;
+}
+
+.pf-v5-c-form-control input,
+input {
+  color: var(--kc-text) !important;
+}
+
+input::placeholder {
+  color: var(--kc-muted) !important;
+}
+
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-form-control:hover {
+  border-color: var(--kc-gold) !important;
+  box-shadow: 0 0 0 3px rgba(200, 162, 75, 0.16);
+}
+
+/* Bouton « afficher le mot de passe » */
+.pf-v5-c-button.pf-m-control {
+  background: var(--kc-surface-2) !important;
+  border-color: var(--kc-border) !important;
+  color: var(--kc-text-secondary) !important;
+}
+
+/* --- Bouton principal (or) --- */
+.pf-v5-c-button.pf-m-primary {
+  background-color: var(--kc-gold) !important;
+  border-color: var(--kc-gold) !important;
+  color: var(--kc-gold-ink) !important;
+  font-weight: 700;
+  min-height: 44px;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: var(--kc-gold-strong) !important;
+  border-color: var(--kc-gold-strong) !important;
+}
+
+/* --- Erreurs / alertes --- */
+.pf-v5-c-alert,
+.kc-feedback-text,
+.pf-c-alert.pf-m-danger {
+  border-radius: 8px;
+}
+
+.pf-m-danger,
+.kc-feedback-text {
+  color: var(--kc-danger) !important;
+}
+
+/* --- Pied de carte (inscription) --- */
+#kc-registration,
+.pf-v5-c-login__main-footer {
+  color: var(--kc-text-secondary) !important;
+}
+
+.pf-v5-c-login__main-footer a {
+  font-weight: 600;
+}
+
+/* --- Responsive --- */
+@media (max-width: 560px) {
+  .pf-v5-c-login__container {
+    grid-template-columns: 100%;
+  }
+  #kc-header-wrapper::after {
+    display: none;
+  }
+}

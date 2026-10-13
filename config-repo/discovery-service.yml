@@ -1,0 +1,18 @@
+server:
+  port: 8761
+
+eureka:
+  instance:
+    hostname: discovery
+  client:
+    # Le registre ne s'enregistre pas aupres de lui-meme.
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+
+info:
+  app:
+    name: Discovery Service (Eureka)
+    description: Service Registry pour l'architecture microservices E-commerce
+    version: 1.0.0

@@ -1,8 +1,28 @@
 services:
+  # Serveur de configuration centralise (Spring Cloud Config, mode "native".
+  # Le depot config-repo/ est monte en lecture seule dans le conteneur.
+  config-server:
+    build: ./services/config-server
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config-repo:/config-repo:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8888/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
   discovery:
     build: ./services/discovery-service
     ports:
       - "8761:8761"
+    depends_on:
+      config-server:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8761/actuator/health"]
       interval: 15s
@@ -12,33 +32,207 @@ services:
     networks:
       - pfe-net
 
-  product-db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: pfe
-      POSTGRES_PASSWORD: pfe
-      POSTGRES_DB: pfe_product
+  # Base documentaire unique : un conteneur MongoDB, une base par service
+  # (pfe_products, pfe_customers, pfe_carts, pfe_orders).
+  mongo:
+    image: mongo:7
     volumes:
-      - product-db-data:/var/lib/postgresql/data
+      - mongo-data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pfe -d pfe_product"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 10
+      start_period: 20s
+    networks:
+      - pfe-net
+
+  # Base de test dediee pour les tests d'integration de l'API (profil "test").
+  # Demarrer avec: docker compose --profile test up -d mongo-test
+  mongo-test:
+    image: mongo:7
+    profiles: ["test"]
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-test-data:/data/db
+    networks:
+      - pfe-net
+
+  # Base RELATIONNELLE unique : un conteneur PostgreSQL, une base + un role
+  # DEDIE par service relationnel (pfe_products -> product_svc,
+  # pfe_customers -> customer_svc). Aucun port publie sur l'hote : la base
+  # n'est joignable que depuis pfe-net. Le schema est gere par Flyway au
+  # demarrage de chaque service.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PRODUCT_DB_PASSWORD: ${PRODUCT_DB_PASSWORD:-product}
+      CUSTOMER_DB_PASSWORD: ${CUSTOMER_DB_PASSWORD:-customer}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init-ecom.sh:/docker-entrypoint-initdb.d/init-ecom.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - pfe-net
+
+  # Base de test PostgreSQL dediee aux tests d'integration (profil "test").
+  # Port hote 5433 (5432 est deja occupe par un PostgreSQL local). Bases
+  # isolees pfe_products_test / pfe_customers_test.
+  # Demarrer avec: docker compose --profile test up -d postgres-test
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./docker/postgres/init-ecom-test.sh:/docker-entrypoint-initdb.d/init-ecom-test.sh:ro
+    networks:
+      - pfe-net
+
+  # Moteur de recherche plein-texte (Elasticsearch). Version epinglee 8.13.4 :
+  # identique au client elasticsearch-java 8.13.4 tire par Spring Boot 3.3.10
+  # (spring-data-elasticsearch 5.3.10). Aucun port publie sur l'hote : joignable
+  # uniquement depuis pfe-net (le navigateur n'atteint jamais ES directement).
+  # Mono-noeud, heap bornee (512 Mo) : usage local/academique.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    ports:
+      # Loopback uniquement : permet aux tests d'integration lances sur l'hote
+      # d'atteindre ES. Jamais expose au reseau local ni au navigateur.
+      - "127.0.0.1:9200:9200"
+    environment:
+      discovery.type: single-node
+      # Aucune authentification : le port n'est pas expose hors du reseau Docker.
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    networks:
+      - pfe-net
+
+  # Stockage objet S3 (MinIO) pour les images produit. Image epinglee par digest :
+  # MinIO ne publie plus d'image communautaire sur Docker Hub (retiree en 2026) ;
+  # on utilise l'image Bitnami "legacy" (MinIO DEVELOPMENT.2025-07-23, AGPLv3).
+  # Aucune interface web (console retiree des versions recentes) : seul l'API S3
+  # sur le port 9000 est publiee, en loopback uniquement (tests/diagnostic).
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pfeecom}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pfeecom123}
+    ports:
+      # Loopback uniquement : jamais expose au reseau local ni au navigateur.
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - pfe-net
+
+  # Initialisation unique du stockage objet : bucket prive + utilisateur applicatif
+  # a privilege minimal (politique limitee au bucket des images). Conteneur ephemere
+  # qui se termine (code 0) une fois le travail fait ; product-service n'en depend
+  # pas (demarrage/exploitation sans stockage possible).
+  minio-init:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      HOME: /tmp
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pfeecom}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pfeecom123}
+      MINIO_APP_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:-pfeecom-app}
+      MINIO_APP_SECRET_KEY: ${MINIO_APP_SECRET_KEY:-pfeecom-app-secret}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pfeecom-product-images}
+    entrypoint: ["/bin/sh", "/init/init-bucket.sh"]
+    volumes:
+      - ./docker/minio/init-bucket.sh:/init/init-bucket.sh:ro
+      - ./docker/minio/product-images-policy.json:/init/product-images-policy.json:ro
+    networks:
+      - pfe-net
+
+  # Fournisseur d'identite Keycloak (OIDC). Herite du port hote 8181 car 8080
+  # est deja occupe par bevaren-keycloak. Le royaume "pfeecom" est importe au
+  # demarrage depuis keycloak/realm-pfeecom.json (reproductible, sans secret
+  # de production : les identifiants de bootstrap viennent de l'environnement).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "8181:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # URL publique (navigateur) : determine l'emetteur (iss) des jetons.
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-http://localhost:8181}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      # Identifiants de demonstration : resolus a l'import du royaume depuis
+      # les variables d'environnement (placeholders ${...} dans le realm).
+      # Valeurs de repli de developpement : surchargeables via le fichier .env
+      # (non versionne). A remplacer en production.
+      PROVISIONER_CLIENT_SECRET: ${PROVISIONER_CLIENT_SECRET:-pfeecom-provisioner-secret}
+      KEYCLOAK_DEMO_ADMIN_PASSWORD: ${KEYCLOAK_DEMO_ADMIN_PASSWORD:-change-me}
+      KEYCLOAK_DEMO_CUSTOMER_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER_PASSWORD:-change-me}
+      KEYCLOAK_DEMO_CUSTOMER2_PASSWORD: ${KEYCLOAK_DEMO_CUSTOMER2_PASSWORD:-change-me}
+    volumes:
+      - ./keycloak/realm-pfeecom.json:/opt/keycloak/data/import/realm-pfeecom.json:ro
+      - ./keycloak/themes/pfeecom:/opt/keycloak/themes/pfeecom:ro
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      # Keycloak 26 n'expose pas d'outil curl/wget : on interroge l'endpoint
+      # de sante (port de gestion 9000) via /dev/tcp de bash.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '\"status\": \"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
     networks:
       - pfe-net
 
   product-service:
     build: ./services/product-service
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://product-db:5432/pfe_product
-      SPRING_DATASOURCE_USERNAME: pfe
-      SPRING_DATASOURCE_PASSWORD: pfe
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+      # Identifiants applicatifs a privilege minimal pour le stockage des images
+      # (utilisateur cree par minio-init, limite au bucket des images).
+      MINIO_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:-pfeecom-app}
+      MINIO_SECRET_KEY: ${MINIO_APP_SECRET_KEY:-pfeecom-app-secret}
     depends_on:
+      config-server:
+        condition: service_healthy
       discovery:
         condition: service_healthy
-      product-db:
+      postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/actuator/health"]
@@ -49,19 +243,22 @@ services:
     networks:
       - pfe-net
 
-  api-gateway:
-    build: ./services/api-gateway
-    ports:
-      - "8080:8080"
+  customer-service:
+    build: ./services/customer-service
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+      # Secret du compte de service de provisionnement (cote serveur uniquement,
+      # jamais expose au navigateur). A surcharger en production.
+      PROVISIONER_CLIENT_SECRET: ${PROVISIONER_CLIENT_SECRET:-pfeecom-provisioner-secret}
     depends_on:
+      config-server:
+        condition: service_healthy
       discovery:
         condition: service_healthy
-      product-service:
+      postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/actuator/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/actuator/health"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -69,9 +266,186 @@ services:
     networks:
       - pfe-net
 
-volumes:
-  product-db-data:
+  cart-service:
+    build: ./services/cart-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8083/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
 
+  order-service:
+    build: ./services/order-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8084/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      # 8080 hote est occupe par bevaren-keycloak (infra partagee) -> 8090 en hote, 8080 dans le conteneur
+      - "8090:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery:8761/eureka
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks:
+      - pfe-net
+
+  frontend-ecom:
+    build: ./frontend-ecom
+    ports:
+      - "5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - pfe-net
+
+  # ---------------------------------------------------------------------------
+  # Observabilite : Prometheus scrape les metriques Micrometer exposees par
+  # chaque service sur /actuator/prometheus (DNS interne pfe-net uniquement).
+  # Le gateway expose son actuator sur un port de GESTION interne (8081), non
+  # publie sur l'hote : ses metriques ne sont donc jamais accessibles de
+  # l'exterieur, seuls Prometheus (dans le reseau) peut les lire.
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - pfe-net
+
+  # Grafana : source de donnees Prometheus et tableaux de bord provisionnes
+  # automatiquement depuis monitoring/grafana/. Identifiants admin via variables
+  # d'environnement (aucun secret en dur).
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"database\": \"ok\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - pfe-net
+
+
+  # Cache applicatif. Joignable uniquement depuis pfe-net (aucun port publie).
+  # Persistance AOF pour conserver le cache entre redemarrages (non autoritatif).
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - pfe-net
+
+  # Instance Redis dediee aux tests d'integration (profil "test").
+  # Demarrer avec: docker compose --profile test up -d redis-test
+  redis-test:
+    image: redis:7.4-alpine
+    profiles: ["test"]
+    ports:
+      - "6380:6379"
+    networks:
+      - pfe-net
+
+volumes:
+  mongo-data:
+  mongo-test-data:
+  postgres-data:
+  elasticsearch-data:
+  minio-data:
+  keycloak-data:
+  prometheus-data:
+  grafana-data:
+  redis-data:
 networks:
   pfe-net:
     driver: bridge
